@@ -1,0 +1,96 @@
+package com.briup.bigdata.bd2003.emdc.gather.impl;
+
+import com.briup.bigdata.bd2003.emdc.bean.Environment;
+import com.briup.bigdata.bd2003.emdc.common.DataType;
+import com.briup.bigdata.bd2003.emdc.common.EvnNum;
+import com.briup.bigdata.bd2003.emdc.common.MyLogger;
+import com.briup.bigdata.bd2003.emdc.config.impl.Config;
+import com.briup.bigdata.bd2003.emdc.config.Iemdc;
+import com.briup.bigdata.bd2003.emdc.gather.IGather;
+
+import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
+
+public class GatherImpl implements IGather<Environment>, Iemdc {
+    /**
+     * 采集原始数据，封装成T类型的对象
+     *
+     * @param logFilePath 原始数据文件的路径
+     * @return 封装的T类型的对象的集合
+     */
+    public List<Environment> gather(String logFilePath) {
+        List<Environment> list = new ArrayList<Environment>();
+        File file = new File(Config.skipPath);
+        try {
+            BufferedReader br = new BufferedReader(new FileReader(file));
+            long skip = Long.parseLong(br.readLine());
+
+            BufferedReader reader = new BufferedReader(new FileReader(new File(logFilePath)));
+            reader.skip(skip);
+            int i = 0;
+            String str;
+            while(i < 1000 && ((str = reader.readLine()) != null)) {
+                i++;
+                String[] split = str.split("[|]");// 100|101|2|1280|1|3|03a701|1|1516931170180
+                if(EvnNum.EVN_TEMP_HUML_NUM.getNum().equals(split[3])){
+                    list.add(new Environment(Integer.parseInt(split[0]),
+                            Integer.parseInt(split[1]),
+                            Integer.parseInt(split[2]),
+                            Integer.parseInt(split[3]),
+                            Integer.parseInt(split[4]),
+                            Integer.parseInt(split[5]),
+                            Double.parseDouble(String.format(
+                                    "%.2f",(Integer.parseInt(
+                                            split[6].substring(0,4),16)*0.00268127-46.85))),
+                            Integer.parseInt(split[7]),
+                            Long.parseLong(split[8]),DataType.TEMP));
+                    list.add(new Environment(Integer.parseInt(split[0]),
+                            Integer.parseInt(split[1]),
+                            Integer.parseInt(split[2]),
+                            Integer.parseInt(split[3]),
+                            Integer.parseInt(split[4]),
+                            Integer.parseInt(split[5]),
+                            Double.parseDouble(String.format(
+                                    "%.2f",(Integer.parseInt(
+                                            split[6].substring(4,8),16)*0.00190735-6))),
+                            Integer.parseInt(split[7]),
+                            Long.parseLong(split[8]),DataType.HUMI));
+                }else if(EvnNum.EVN_ILLU_NUM.getNum().equals(split[3])){
+                    list.add(new Environment(Integer.parseInt(split[0]),
+                            Integer.parseInt(split[1]),
+                            Integer.parseInt(split[2]),
+                            Integer.parseInt(split[3]),
+                            Integer.parseInt(split[4]),
+                            Integer.parseInt(split[5]),
+                            new Double(Integer.parseInt(split[6],16)),
+                            Integer.parseInt(split[7]),
+                            Long.parseLong(split[8]),DataType.ILLU));
+                }else if(EvnNum.EVN_CO2_NUM.getNum().equals(split[3])){
+                    list.add(new Environment(Integer.parseInt(split[0]),
+                            Integer.parseInt(split[1]),
+                            Integer.parseInt(split[2]),
+                            Integer.parseInt(split[3]),
+                            Integer.parseInt(split[4]),
+                            Integer.parseInt(split[5]),
+                            new Double(Integer.parseInt(split[6],16)),
+                            Integer.parseInt(split[7]),
+                            Long.parseLong(split[8]),DataType.CO2));
+                }
+                skip+=str.getBytes().length+1;// 换行符占1个字节
+            }
+            PrintStream ps = new PrintStream(file);
+            ps.println(skip);// 添加的换行符有效
+        } catch (FileNotFoundException e) {
+            MyLogger.myLogger.error(e.getMessage());
+        } catch (IOException e) {
+            MyLogger.myLogger.error(e.getMessage());
+        }
+        return list;
+    }
+    public static List<Environment> init(){
+        MyLogger.myLogger.info("开始采集数据");
+        String logFilePath = Config.gatherPath;
+        return new GatherImpl().gather(logFilePath);
+    }
+}
